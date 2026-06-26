@@ -9,6 +9,19 @@ import UniformTypeIdentifiers
 
 private let appLogger = Logger(subsystem: "local.hal.codex-pet-standalone", category: "ui")
 
+struct AIModelUsageStatus {
+    let provider: String
+    let remainingPercent: Double
+    let isExhausted: Bool
+
+    var displayText: String {
+        if isExhausted {
+            return "上限到達"
+        }
+        return "残り \(Int(remainingPercent.rounded()))%"
+    }
+}
+
 fileprivate struct CodexUsageStatus {
     let remainingPercent: Double
     let resetAt: Date?
@@ -308,6 +321,7 @@ final class SpriteView: NSView {
     private var notifiedMoveStart = false
     private let thinkingAnimationKey = "codexPet.thinking"
     private var usageStatus: CodexUsageStatus?
+    private var modelUsageStatus: AIModelUsageStatus?
     private var isUsageHovered = false
     private var hoverTrackingArea: NSTrackingArea?
     private var pendingSingleClickTimer: Timer?
@@ -356,6 +370,11 @@ final class SpriteView: NSView {
 
     override func mouseExited(with event: NSEvent) {
         isUsageHovered = false
+        needsDisplay = true
+    }
+
+    func setModelUsageStatus(_ status: AIModelUsageStatus) {
+        modelUsageStatus = status
         needsDisplay = true
     }
 
@@ -446,10 +465,18 @@ final class SpriteView: NSView {
         NSColor.separatorColor.withAlphaComponent(0.55).setFill()
         track.fill()
 
-        guard let usageStatus else {
+        let displayPercent: Double
+        let isExhausted: Bool
+        if let modelStatus = modelUsageStatus {
+            displayPercent = modelStatus.remainingPercent
+            isExhausted = modelStatus.isExhausted
+        } else if let usageStatus = usageStatus {
+            displayPercent = usageStatus.recoveryProgressPercent ?? usageStatus.remainingPercent
+            isExhausted = usageStatus.isExhausted
+        } else {
             return
         }
-        let displayPercent = usageStatus.recoveryProgressPercent ?? usageStatus.remainingPercent
+
         let fillWidth = trackRect.width * CGFloat(displayPercent / 100)
         guard fillWidth > 0 else {
             return
@@ -457,11 +484,11 @@ final class SpriteView: NSView {
         let fillRect = NSRect(x: trackRect.minX, y: trackRect.minY, width: fillWidth, height: trackRect.height)
         let fill = NSBezierPath(roundedRect: fillRect, xRadius: 3, yRadius: 3)
         let color: NSColor
-        if usageStatus.isExhausted {
+        if isExhausted {
             color = .systemBlue
-        } else if usageStatus.remainingPercent > 50 {
+        } else if displayPercent > 50 {
             color = .systemGreen
-        } else if usageStatus.remainingPercent > 20 {
+        } else if displayPercent > 20 {
             color = .systemOrange
         } else {
             color = .systemRed
@@ -469,7 +496,7 @@ final class SpriteView: NSView {
         color.setFill()
         fill.fill()
 
-        if usageStatus.isExhausted {
+        if isExhausted {
             let stripe = NSBezierPath()
             stripe.move(to: NSPoint(x: fillRect.minX, y: fillRect.minY))
             stripe.line(to: NSPoint(x: fillRect.maxX, y: fillRect.maxY))
@@ -484,10 +511,12 @@ final class SpriteView: NSView {
             return
         }
         let text: String
-        if let recoveryText = usageStatus?.recoveryRemainingText {
-            text = recoveryText
+        if let modelStatus = modelUsageStatus {
+            text = "\(modelStatus.provider): \(modelStatus.displayText)"
+        } else if let recoveryText = usageStatus?.recoveryRemainingText {
+            text = "Codex: \(recoveryText)"
         } else if let usageStatus {
-            text = "残り \(Int(usageStatus.remainingPercent.rounded()))%"
+            text = "Codex: 残り \(Int(usageStatus.remainingPercent.rounded()))%"
         } else {
             text = "残量取得不可"
         }
@@ -2249,6 +2278,7 @@ final class PetWindowController: SpriteViewDelegate {
     private let panelGap: CGFloat = UIConstants.panelGap
     private var logDirectoryPath: String = codexPetDefaultInboxPath()
     private var thinkingRequestCount = 0
+    private var modelUsageStatus: AIModelUsageStatus?
     var notificationResizeHandler: ((CGFloat, CGFloat) -> Void)?
 
     init(size: CGFloat = 168) {
@@ -2463,6 +2493,11 @@ final class PetWindowController: SpriteViewDelegate {
 
     func setComposerBusy(_ busy: Bool) {
         composerView.setBusy(busy)
+    }
+
+    func updateModelUsageDisplay(_ status: AIModelUsageStatus) {
+        modelUsageStatus = status
+        spriteView.setModelUsageStatus(status)
     }
 
     func hideComposer() {
@@ -2766,9 +2801,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settingsTimer = Timer.scheduledTimer(withTimeInterval: SettingsConstants.settingsCheckInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.reloadSettings()
+                self?.updateModelUsageDisplay()
             }
         }
         reloadSettings()
+        updateModelUsageDisplay()
+    }
+
+    private func updateModelUsageDisplay() {
+        let modelUsage = currentProviderUsageStatus()
+        petWindow.updateModelUsageDisplay(modelUsage)
+    }
+
+    private func currentProviderUsageStatus() -> AIModelUsageStatus {
+        switch settings.aiProvider {
+        case "codex":
+            if let codexStatus = CodexUsageReader.status() {
+                return AIModelUsageStatus(
+                    provider: "Codex",
+                    remainingPercent: codexStatus.remainingPercent,
+                    isExhausted: codexStatus.isExhausted
+                )
+            }
+        case "claudeCode":
+            return AIModelUsageStatus(provider: "Claude Code", remainingPercent: 100, isExhausted: false)
+        case "Gemini":
+            return AIModelUsageStatus(provider: "Gemini", remainingPercent: 100, isExhausted: false)
+        case "SAKANA FUGU":
+            return AIModelUsageStatus(provider: "Sakana", remainingPercent: 100, isExhausted: false)
+        case "Ollama":
+            return AIModelUsageStatus(provider: "Ollama", remainingPercent: 100, isExhausted: false)
+        default:
+            return AIModelUsageStatus(provider: "Unknown", remainingPercent: 100, isExhausted: false)
+        }
+        return AIModelUsageStatus(provider: "Codex", remainingPercent: 0, isExhausted: true)
     }
 
     private func reloadSettings() {
