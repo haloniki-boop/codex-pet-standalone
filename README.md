@@ -7,7 +7,7 @@ Codexとは別プロセスで動く、macOS用の常駐デスクトップペッ�
 - 透明・常時最前面のペット表示（全デスクトップ対応）
 - 静止、左右移動、上下運動、喜び・怒り・悲しみ・驚き・愛情アニメーション
 - 画像アップロードから8フレーム×9行のスプライトを自動生成
-- codex、claudeCode、Gemini、SAKANA FUGUを選べる内蔵AIチャット
+- codex、claudeCode、Gemini、SAKANA FUGU、Ollama、Hermes Agentを選べる内蔵AIチャット
 - APIキーはプロジェクト直下の `.env` から読み込み
 - Todo・スケジュール管理とmacOS通知
 - 日本語の日常会話、音声認識、音声読み上げ
@@ -17,6 +17,31 @@ Codexとは別プロセスで動く、macOS用の常駐デスクトップペッ�
 - 設定画面から通知の表示時間・横幅・高さを変更可能
 - 設定画面から会話ログの保存先と `.env` ファイルの場所を変更可能
 - チャットの通話ログは `00_INBOX/YYYYMMDD_HHmmss_pet` に保存
+
+## Hermes Agentを使う
+
+DXP-2800上でHermes AgentのAPIサーバーが動作していることを確認し、プロジェクト直下の `.env` にAPIキーを設定します。
+
+```env
+HERMES_API_KEY=<DXP-2800のAPI_SERVER_KEY>
+```
+
+アプリの設定画面でAIモデルに `Hermes Agent` を選択します。
+
+- 既定の接続先：`http://DXP2800-86A5.local:8642/v1/chat/completions`
+- 既定のモデル：`hermes-agent`
+- API形式：OpenAI互換 Chat Completions
+- 認証方式：`Authorization: Bearer <HERMES_API_KEY>`
+
+接続先は設定画面で変更できます。`.env` は公開リポジトリへコミットしないでください。
+
+疎通確認：
+
+```sh
+curl -fsS http://DXP2800-86A5.local:8642/v1/health
+```
+
+正常時は `"status": "ok"` を含むJSONが返ります。接続できない場合は、MacとDXP-2800が同じネットワークまたはTailscale上にあること、Hermesコンテナの8642番ポートが公開されていることを確認してください。
 
 ## Run
 
@@ -30,9 +55,9 @@ The app opens a transparent floating pet window. Click the pet for everyday conv
 
 Use Settings > Open Settings Window... to upload a pet image, choose the pet and size, configure AI, voice, notifications, and edit Japanese conversation messages.
 
-`codex` と `claudeCode` はローカルCLIを使用します。GeminiはGemini CLIが必要です。
-SAKANA FUGUは設定したSakana API互換エンドポイントとAPIキーを使用します。
-APIキーは `.env` に `OPENAI_API_KEY` または `SAKANA_API_KEY` / `SAKANA_FUGU_API_KEY` を書きます。
+`codex` と `claudeCode` はローカルCLIを使用します。GeminiはGemini CLIが必要です。SAKANA FUGU、Ollama、Hermes AgentはHTTP APIを使用します。
+
+APIキーは `.env` に設定します。SAKANA FUGUでは `SAKANA_API_KEY` または `SAKANA_FUGU_API_KEY`、Hermes Agentでは `HERMES_API_KEY` を使用します。
 
 日常会話欄の文章は生成例として利用されます。表示時には毎回、例と直近の発言に重複しない新しい会話を生成します。
 
@@ -51,6 +76,9 @@ Example:
 ```json
 {
   "chatCommand": ["/usr/bin/open", "-a", "Codex"],
+  "aiEndpoint": "http://DXP2800-86A5.local:8642/v1/chat/completions",
+  "aiModel": "hermes-agent",
+  "aiProvider": "Hermes Agent",
   "idleConversationDelaySeconds": 90,
   "idleConversationEnabled": true,
   "idleConversationMessages": [
@@ -74,6 +102,8 @@ Example:
 Set `preferredPetID` or use Settings > Pet Type to change pets. Set `size` or use Settings > Size to resize. Set `notificationText` or point `notificationFile` at a text file to show a speech bubble when the message changes. When `idleConversationEnabled` is true, the pet starts a small Japanese everyday conversation after `idleConversationDelaySeconds` of no interaction. Good topics include weather, current events, news, trivia, AI news, Zen phrases, and quotes.
 
 Set `voiceEnabled` to enable speech. `voiceIdentifier` is selected from the voices installed on macOS. `voiceToggleShortcut` uses a format such as `cmd+shift+v`, `ctrl+option+v`, or `cmd+shift+s`. macOS may ask for microphone and speech recognition permissions the first time listening starts.
+
+設定画面で `.env` ファイルを変更した場合は、そのファイル内に `HERMES_API_KEY` を設定してください。APIキーそのものは `settings.json` へ保存されません。
 
 ## Build an app bundle
 

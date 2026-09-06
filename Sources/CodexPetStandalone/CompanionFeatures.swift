@@ -196,6 +196,11 @@ final class AIChatClient {
                 throw AIClientError.invalidEndpoint
             }
             return try await ollamaReply(url: url, messages: messages, settings: settings)
+        case "Hermes Agent":
+            guard let url = URL(string: settings.aiEndpoint) else {
+                throw AIClientError.invalidEndpoint
+            }
+            return try await hermesReply(url: url, messages: messages, settings: settings)
         case "SAKANA FUGU":
             guard let url = URL(string: settings.aiEndpoint) else {
                 throw AIClientError.invalidEndpoint
@@ -335,6 +340,23 @@ final class AIChatClient {
     }
 
     private func ollamaReply(url: URL, messages: [ChatMessage], settings: PetSettings) async throws -> String {
+        try await chatCompletionsReply(url: url, messages: messages, settings: settings, apiKey: nil)
+    }
+
+    private func hermesReply(url: URL, messages: [ChatMessage], settings: PetSettings) async throws -> String {
+        let apiKey = secretStore.loadEnvironmentValue(for: ["HERMES_API_KEY"])
+        guard !apiKey.isEmpty else {
+            throw AIClientError.missingAPIKey
+        }
+        return try await chatCompletionsReply(url: url, messages: messages, settings: settings, apiKey: apiKey)
+    }
+
+    private func chatCompletionsReply(
+        url: URL,
+        messages: [ChatMessage],
+        settings: PetSettings,
+        apiKey: String?
+    ) async throws -> String {
         let endpoint = chatCompletionsEndpointURL(from: url)
         let ragContext = ragContext(from: settings)
         let systemPrompt = [settings.aiSystemPrompt, ragContext.isEmpty ? nil : "参考資料:\n\(ragContext)"]
@@ -344,6 +366,9 @@ final class AIChatClient {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let apiKey {
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        }
         request.httpBody = try JSONSerialization.data(withJSONObject: [
             "model": settings.aiModel,
             "stream": false,
@@ -513,7 +538,7 @@ final class ChatWindowController: NSWindowController, NSTextFieldDelegate {
     private var logLines: [String] = []
     private var persistedLineCount = 0
     private var didWriteSessionHeader = false
-    var responseHandler: ((String) -> Void)?
+    var responseHandler: ((String, String) -> Void)?
     var thinkingStateHandler: ((Bool) -> Void)?
 
     init(client: AIChatClient, settingsProvider: @escaping () -> PetSettings, logDirectoryPath: String) {
@@ -623,7 +648,7 @@ final class ChatWindowController: NSWindowController, NSTextFieldDelegate {
                 removeThinkingLine()
                 messages.append(ChatMessage(role: "assistant", content: response))
                 append("ペット", response)
-                responseHandler?(response)
+                responseHandler?(text, response)
             } catch {
                 removeThinkingLine()
                 append("エラー", error.localizedDescription, persist: false)

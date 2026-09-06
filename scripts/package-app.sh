@@ -62,6 +62,13 @@ cat > "$CONTENTS_DIR/Info.plist" <<'PLIST'
   <string>14.0</string>
   <key>LSUIElement</key>
   <true/>
+  <key>NSAppTransportSecurity</key>
+  <dict>
+    <key>NSAllowsLocalNetworking</key>
+    <true/>
+  </dict>
+  <key>NSLocalNetworkUsageDescription</key>
+  <string>Codex Pet connects to Hermes Agent on your local DXP-2800 NAS.</string>
   <key>NSMicrophoneUsageDescription</key>
   <string>Codex Pet uses the microphone when voice mode is on so it can listen to your conversation.</string>
   <key>NSSpeechRecognitionUsageDescription</key>

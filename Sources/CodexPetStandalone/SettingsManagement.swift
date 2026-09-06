@@ -92,6 +92,7 @@ struct PetSettings: Codable, Equatable {
 
     static let sakanaDefaultEndpoint = "https://api.sakana.ai/v1/responses"
     static let ollamaDefaultEndpoint = "http://localhost:11434/v1/chat/completions"
+    static let hermesDefaultEndpoint = "http://DXP2800-86A5.local:8642/v1/chat/completions"
 
     private enum CodingKeys: String, CodingKey {
         case preferredPetID
@@ -351,6 +352,13 @@ final class SettingsStore {
             }
             if normalized.aiModel.isEmpty || normalized.aiModel == "Ollama" {
                 normalized.aiModel = SettingsConstants.defaultOllamaModel
+            }
+        } else if normalized.aiProvider == "Hermes Agent" {
+            if normalized.aiEndpoint == PetSettings.defaults.aiEndpoint || normalized.aiEndpoint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                normalized.aiEndpoint = PetSettings.hermesDefaultEndpoint
+            }
+            if normalized.aiModel.isEmpty || normalized.aiModel == "Hermes Agent" {
+                normalized.aiModel = SettingsConstants.defaultHermesModel
             }
         } else if normalized.aiModel.isEmpty {
             normalized.aiModel = PetSettings.defaults.aiModel

@@ -694,7 +694,18 @@ final class SpriteView: NSView {
 
 @MainActor
 final class BubbleView: NSView {
-    private let textField = NSTextField(labelWithString: "")
+    private enum TurnRole {
+        case query
+        case response
+    }
+
+    private struct ConversationTurn {
+        let role: TurnRole
+        let text: String
+    }
+
+    private let scrollView = NSScrollView()
+    private let textView = NSTextView()
     private let copyButton = NSButton(title: "", target: nil, action: nil)
     private let closeButton = NSButton(title: "×", target: nil, action: nil)
     private let resizeHandleSize: CGFloat = 16
@@ -702,18 +713,44 @@ final class BubbleView: NSView {
     private var resizeStartLocation: NSPoint = .zero
     private var resizeStartSize: NSSize = .zero
     private var clipboardText = ""
+    private var turns: [ConversationTurn] = []
+    private var currentFontSize: CGFloat = UIConstants.bubbleTextFontSize
 
     var resizeHandler: ((NSSize) -> Void)?
     var closeHandler: (() -> Void)?
 
-    var message: String {
-        get { textField.stringValue }
-        set { textField.stringValue = newValue }
+    func appendTurn(query: String?, response: String) {
+        if let query, !query.isEmpty {
+            turns.append(ConversationTurn(role: .query, text: query))
+        }
+        turns.append(ConversationTurn(role: .response, text: response))
+        turns = Array(turns.suffix(UIConstants.bubbleHistoryMaxTurns))
+        clipboardText = turns
+            .map { turn in "\(turn.role == .query ? "あなた" : "返答"): \(turn.text)" }
+            .joined(separator: "\n\n")
+        renderTurns()
     }
 
-    func setMessage(_ displayText: String, clipboardText: String) {
-        textField.stringValue = displayText
-        self.clipboardText = clipboardText
+    func clearHistory() {
+        turns = []
+        renderTurns()
+    }
+
+    private func renderTurns() {
+        let result = NSMutableAttributedString()
+        let labelFont = NSFont.systemFont(ofSize: currentFontSize, weight: .bold)
+        let textFont = NSFont.systemFont(ofSize: currentFontSize, weight: .medium)
+        for (index, turn) in turns.enumerated() {
+            if index > 0 {
+                result.append(NSAttributedString(string: "\n\n"))
+            }
+            let color = turn.role == .query ? UIConstants.bubbleQueryTextColor : UIConstants.bubbleResponseTextColor
+            let label = turn.role == .query ? "あなた: " : "🐾 "
+            result.append(NSAttributedString(string: label, attributes: [.font: labelFont, .foregroundColor: color]))
+            result.append(NSAttributedString(string: turn.text, attributes: [.font: textFont, .foregroundColor: color]))
+        }
+        textView.textStorage?.setAttributedString(result)
+        textView.scrollToEndOfDocument(nil)
     }
 
     override init(frame frameRect: NSRect) {
@@ -721,12 +758,22 @@ final class BubbleView: NSView {
         wantsLayer = true
         layer?.backgroundColor = NSColor.clear.cgColor
 
-        textField.translatesAutoresizingMaskIntoConstraints = false
-        textField.font = .systemFont(ofSize: UIConstants.bubbleTextFontSize, weight: .medium)
-        textField.textColor = .labelColor
-        textField.lineBreakMode = .byCharWrapping
-        textField.maximumNumberOfLines = 0
-        addSubview(textField)
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.drawsBackground = false
+        textView.textContainerInset = NSSize(width: 0, height: 0)
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.lineFragmentPadding = 0
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.font = .systemFont(ofSize: currentFontSize, weight: .medium)
+
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.documentView = textView
+        scrollView.hasVerticalScroller = true
+        scrollView.drawsBackground = false
+        scrollView.borderType = .noBorder
+        addSubview(scrollView)
 
         copyButton.translatesAutoresizingMaskIntoConstraints = false
         copyButton.isBordered = false
@@ -756,10 +803,10 @@ final class BubbleView: NSView {
         addSubview(closeButton)
 
         NSLayoutConstraint.activate([
-            textField.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 11),
-            textField.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -54),
-            textField.topAnchor.constraint(equalTo: topAnchor, constant: 8),
-            textField.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -11)
+            scrollView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 11),
+            scrollView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -54),
+            scrollView.topAnchor.constraint(equalTo: topAnchor, constant: 8),
+            scrollView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -11)
         ])
         NSLayoutConstraint.activate([
             copyButton.topAnchor.constraint(equalTo: topAnchor, constant: 4),
@@ -778,7 +825,7 @@ final class BubbleView: NSView {
 
     func preferredHeight(for message: String, width: CGFloat, minimumLines: Int = 3) -> CGFloat {
         let usableWidth = max(1, width - 20)
-        let font = textField.font ?? .systemFont(ofSize: 13, weight: .medium)
+        let font = NSFont.systemFont(ofSize: currentFontSize, weight: .medium)
         let attributes: [NSAttributedString.Key: Any] = [.font: font]
         let rect = (message as NSString).boundingRect(
             with: NSSize(width: usableWidth, height: .greatestFiniteMagnitude),
@@ -792,7 +839,7 @@ final class BubbleView: NSView {
     }
 
     func preferredWidth(for message: String, maximumWidth: CGFloat) -> CGFloat {
-        let font = textField.font ?? .systemFont(ofSize: 13, weight: .medium)
+        let font = NSFont.systemFont(ofSize: currentFontSize, weight: .medium)
         let attributes: [NSAttributedString.Key: Any] = [.font: font]
         let longestLineWidth = message
             .components(separatedBy: .newlines)
@@ -814,7 +861,9 @@ final class BubbleView: NSView {
     }
 
     func setFontSize(_ size: CGFloat) {
-        textField.font = .systemFont(ofSize: size, weight: .medium)
+        currentFontSize = size
+        textView.font = .systemFont(ofSize: size, weight: .medium)
+        renderTurns()
         needsDisplay = true
         needsLayout = true
     }
@@ -1929,13 +1978,16 @@ final class SettingsWindowController: NSWindowController, NSTableViewDataSource,
 
     @objc private func aiProviderChanged() {
         updateOllamaModelUI()
-        if (aiProviderPopup.selectedItem?.representedObject as? String) == "Ollama" {
+        let selectedProvider = aiProviderPopup.selectedItem?.representedObject as? String
+        if selectedProvider == "Ollama" {
             refreshOllamaModelCandidates(selectedModel: settings.aiModel)
             if aiEndpointField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 aiEndpointField.stringValue = PetSettings.ollamaDefaultEndpoint
             }
             ollamaSectionExpanded = true
             updateOllamaSectionVisibility()
+        } else if selectedProvider == "Hermes Agent" {
+            aiEndpointField.stringValue = PetSettings.hermesDefaultEndpoint
         }
         window?.makeFirstResponder(nil)
         saveSettings()
@@ -1965,6 +2017,10 @@ final class SettingsWindowController: NSWindowController, NSTableViewDataSource,
             aiEndpointField.stringValue = PetSettings.sakanaDefaultEndpoint
             aiEndpointField.isEditable = false
             aiEndpointField.isEnabled = false
+        } else if (aiProviderPopup.selectedItem?.representedObject as? String) == "Hermes Agent" {
+            aiEndpointField.stringValue = PetSettings.hermesDefaultEndpoint
+            aiEndpointField.isEditable = true
+            aiEndpointField.isEnabled = true
         } else {
             aiEndpointField.isEnabled = true
             aiEndpointField.isEditable = true
@@ -2106,6 +2162,11 @@ final class SettingsWindowController: NSWindowController, NSTableViewDataSource,
                 nextSettings.aiEndpoint = PetSettings.ollamaDefaultEndpoint
             }
             nextSettings.aiModel = selectedCheckboxValue(from: ollamaModelButtons, fallback: SettingsConstants.defaultOllamaModel)
+        } else if nextSettings.aiProvider == "Hermes Agent" {
+            if nextSettings.aiEndpoint.isEmpty || nextSettings.aiEndpoint == PetSettings.defaults.aiEndpoint {
+                nextSettings.aiEndpoint = PetSettings.hermesDefaultEndpoint
+            }
+            nextSettings.aiModel = SettingsConstants.defaultHermesModel
         } else {
             nextSettings.aiModel = nextSettings.aiProvider
         }
@@ -2312,9 +2373,11 @@ final class PetWindowController: SpriteViewDelegate {
         bubbleWindow.level = .floating
         bubbleWindow.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         bubbleWindow.ignoresMouseEvents = false
+        bubbleWindow.hidesOnDeactivate = false
         bubbleWindow.minSize = NSSize(width: 20, height: 80)
-        bubbleView.closeHandler = { [weak bubbleWindow] in
+        bubbleView.closeHandler = { [weak bubbleWindow, weak bubbleView] in
             bubbleWindow?.orderOut(nil)
+            bubbleView?.clearHistory()
         }
 
         composerView = ComposerBubbleView(frame: NSRect(x: 0, y: 0, width: composerPanelWidth, height: 178))
@@ -2418,7 +2481,7 @@ final class PetWindowController: SpriteViewDelegate {
         logDirectoryPath = trimmed
     }
 
-    func showBubble(_ message: String, duration: TimeInterval? = nil, autoSize: Bool = false, persistLog: Bool = false) {
+    func showBubble(_ message: String, query: String? = nil, duration: TimeInterval? = nil, autoSize: Bool = false, persistLog: Bool = false) {
         let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             bubbleWindow.orderOut(nil)
@@ -2441,7 +2504,9 @@ final class PetWindowController: SpriteViewDelegate {
             bubbleWindow.setFrame(frame, display: true)
             bubbleWindow.contentView?.layoutSubtreeIfNeeded()
         }
-        bubbleView.setMessage(displayText, clipboardText: trimmed)
+        let trimmedQuery = query?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let displayQuery = trimmedQuery.map { BubbleView.formattedNotificationText($0) }
+        bubbleView.appendTurn(query: (displayQuery?.isEmpty == false) ? displayQuery : nil, response: displayText)
         composerWindow.orderOut(nil)
         positionBubble()
         bubbleWindow.orderFrontRegardless()
@@ -2831,6 +2896,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return AIModelUsageStatus(provider: "Sakana", remainingPercent: 100, isExhausted: false)
         case "Ollama":
             return AIModelUsageStatus(provider: "Ollama", remainingPercent: 100, isExhausted: false)
+        case "Hermes Agent":
+            return AIModelUsageStatus(provider: "Hermes", remainingPercent: 100, isExhausted: false)
         default:
             return AIModelUsageStatus(provider: "Unknown", remainingPercent: 100, isExhausted: false)
         }
@@ -2927,8 +2994,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let controller = ChatWindowController(client: aiClient, settingsProvider: { [weak self] in
                 self?.settings ?? .defaults
             }, logDirectoryPath: settings.chatLogDirectoryPath)
-            controller.responseHandler = { [weak self] response in
-                self?.petWindow.showBubble(response)
+            controller.responseHandler = { [weak self] query, response in
+                self?.petWindow.showBubble(response, query: query)
                 guard let self else { return }
                 self.voiceController.speak(response, enabled: self.settings.voiceOutputEnabled)
             }
@@ -3066,7 +3133,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 petWindow.hideComposer()
                 appLogger.info("composer response shown length=\(response.count, privacy: .public)")
                 ChatLogStore.shared.appendMarkdownEntry(directoryPath: settings.chatLogDirectoryPath, speaker: "返答", text: response)
-                petWindow.showBubble(response, persistLog: false)
+                petWindow.showBubble(response, query: text, persistLog: false)
                 voiceController.speak(response, enabled: settings.voiceOutputEnabled)
             } catch {
                 petWindow.setComposerBusy(false)
@@ -3195,7 +3262,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     response = fallback
                 }
                 ChatLogStore.shared.appendMarkdownEntry(directoryPath: self.settings.chatLogDirectoryPath, speaker: "返答", text: response)
-                self.petWindow.showBubble(response, persistLog: false)
+                self.petWindow.showBubble(response, query: text, persistLog: false)
                 self.voiceController.speak(response, enabled: self.settings.voiceOutputEnabled)
                 self.markActivity()
             }

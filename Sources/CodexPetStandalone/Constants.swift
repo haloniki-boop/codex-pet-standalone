@@ -58,6 +58,10 @@ struct UIConstants {
     static let composerTextFontSize: CGFloat = 13
     static let bubbleTextFontSize: CGFloat = 13
 
+    static let bubbleQueryTextColor: NSColor = .systemBlue
+    static let bubbleResponseTextColor: NSColor = .labelColor
+    static let bubbleHistoryMaxTurns: Int = 30
+
     static let screenMargin: CGFloat = 8
     static let minNotificationWidth: CGFloat = 20
     static let maxNotificationWidth: CGFloat = 600
@@ -87,8 +91,8 @@ struct VoiceConstants {
 }
 
 struct SettingsConstants {
-    static let supportedAIProviders = ["codex", "claudeCode", "Gemini", "SAKANA FUGU", "Ollama"]
-    static let supportedAIProvidersForUI = ["codex", "claudeCode", "Gemini", "SAKANA FUGU", "Ollama"]
+    static let supportedAIProviders = ["codex", "claudeCode", "Gemini", "SAKANA FUGU", "Ollama", "Hermes Agent"]
+    static let supportedAIProvidersForUI = ["codex", "claudeCode", "Gemini", "SAKANA FUGU", "Ollama", "Hermes Agent"]
 
     static let minIdleDelaySeconds: TimeInterval = 10
     static let defaultIdleDelaySeconds: TimeInterval = 90
@@ -101,6 +105,7 @@ struct SettingsConstants {
     static let sakanaModels = ["fugu", "fugu-ultra"]
     static let defaultSakanaModel = "fugu"
     static let defaultOllamaModel = "llama3.1"
+    static let defaultHermesModel = "hermes-agent"
 }
 
 struct ExecutableConstants {
