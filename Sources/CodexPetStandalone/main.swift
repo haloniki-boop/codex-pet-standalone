@@ -2861,6 +2861,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         configureVoice()
         installShortcutMonitors()
         refreshMenu()
+        updateModelUsageDisplay()
         markActivity()
     }
 
