@@ -1020,6 +1020,7 @@ final class KeyablePetPanel: NSPanel {
 @MainActor
 final class ComposerTextView: NSTextView {
     var sendHandler: (() -> Void)?
+    var didChangeBlock: (() -> Void)?
 
     override func insertNewline(_ sender: Any?) {
         sendHandler?()
@@ -1027,6 +1028,11 @@ final class ComposerTextView: NSTextView {
 
     override func insertLineBreak(_ sender: Any?) {
         textStorage?.replaceCharacters(in: selectedRange(), with: "\n")
+    }
+
+    override func didChangeText() {
+        super.didChangeText()
+        didChangeBlock?()
     }
 }
 
@@ -1037,6 +1043,7 @@ final class ComposerBubbleView: NSView {
     private let inputTextView = ComposerTextView()
     private let voiceButton = NSButton()
     private let sendButton = NSButton()
+    private var inputScrollViewHeightConstraint: NSLayoutConstraint?
 
     var sendHandler: ((String) -> Void)?
     var voiceHandler: (() -> Void)?
@@ -1063,6 +1070,9 @@ final class ComposerBubbleView: NSView {
         inputTextView.textContainer?.lineFragmentPadding = 0
         inputTextView.sendHandler = { [weak self] in
             self?.send()
+        }
+        inputTextView.didChangeBlock = { [weak self] in
+            self?.updateInputHeight()
         }
 
         inputScrollView.hasVerticalScroller = true
@@ -1094,13 +1104,14 @@ final class ComposerBubbleView: NSView {
         stack.spacing = 7
         addSubview(stack)
 
+        inputScrollViewHeightConstraint = inputScrollView.heightAnchor.constraint(equalToConstant: 78)
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 13),
             stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -13),
             stack.topAnchor.constraint(equalTo: topAnchor, constant: 13),
             stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -18),
             inputScrollView.widthAnchor.constraint(equalTo: stack.widthAnchor),
-            inputScrollView.heightAnchor.constraint(equalToConstant: 78),
+            inputScrollViewHeightConstraint!,
             buttonStack.trailingAnchor.constraint(equalTo: stack.trailingAnchor)
         ])
     }
@@ -1142,6 +1153,16 @@ final class ComposerBubbleView: NSView {
 
     @objc private func startVoiceInput() {
         voiceHandler?()
+    }
+
+    private func updateInputHeight() {
+        let maxHeight: CGFloat = 300
+        let minHeight: CGFloat = 78
+
+        let textSize = inputTextView.attributedString().size()
+        let requiredHeight = min(max(textSize.height + 12, minHeight), maxHeight)
+        inputScrollViewHeightConstraint?.constant = requiredHeight
+        window?.layoutIfNeeded()
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -2146,7 +2167,7 @@ final class SettingsWindowController: NSWindowController, NSTableViewDataSource,
         nextSettings.notificationFontSize = min(max(Double(notificationFontSizeField.stringValue) ?? settings.notificationFontSize, 10), 64)
         let logDirectory = chatLogDirectoryField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         nextSettings.chatLogDirectoryPath = logDirectory.isEmpty ? PetSettings.defaults.chatLogDirectoryPath : logDirectory
-        nextSettings.inputBubbleWidth = min(max(Double(inputBubbleWidthField.stringValue) ?? settings.inputBubbleWidth, 120), 600)
+        nextSettings.inputBubbleWidth = min(max(Double(inputBubbleWidthField.stringValue) ?? settings.inputBubbleWidth, 120), 1200)
         nextSettings.idleConversationEnabled = idleCheckbox.state == .on
         nextSettings.idleConversationDelaySeconds = Double(idleDelayField.stringValue) ?? settings.idleConversationDelaySeconds
         nextSettings.voiceInputEnabled = voiceInputCheckbox.state == .on
