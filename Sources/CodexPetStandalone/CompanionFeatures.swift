@@ -201,6 +201,11 @@ final class AIChatClient {
                 throw AIClientError.invalidEndpoint
             }
             return try await hermesReply(url: url, messages: messages, settings: settings)
+        case "Genspark":
+            guard let url = URL(string: settings.aiEndpoint) else {
+                throw AIClientError.invalidEndpoint
+            }
+            return try await gensparkReply(url: url, messages: messages, settings: settings)
         case "SAKANA FUGU":
             guard let url = URL(string: settings.aiEndpoint) else {
                 throw AIClientError.invalidEndpoint
@@ -345,6 +350,14 @@ final class AIChatClient {
 
     private func hermesReply(url: URL, messages: [ChatMessage], settings: PetSettings) async throws -> String {
         let apiKey = secretStore.loadEnvironmentValue(for: ["HERMES_API_KEY"])
+        guard !apiKey.isEmpty else {
+            throw AIClientError.missingAPIKey
+        }
+        return try await chatCompletionsReply(url: url, messages: messages, settings: settings, apiKey: apiKey)
+    }
+
+    private func gensparkReply(url: URL, messages: [ChatMessage], settings: PetSettings) async throws -> String {
+        let apiKey = secretStore.loadEnvironmentValue(for: ["GENSPARK_API_KEY"])
         guard !apiKey.isEmpty else {
             throw AIClientError.missingAPIKey
         }

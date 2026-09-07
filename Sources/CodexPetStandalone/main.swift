@@ -1988,6 +1988,11 @@ final class SettingsWindowController: NSWindowController, NSTableViewDataSource,
             updateOllamaSectionVisibility()
         } else if selectedProvider == "Hermes Agent" {
             aiEndpointField.stringValue = PetSettings.hermesDefaultEndpoint
+        } else if selectedProvider == "Genspark" {
+            let trimmed = aiEndpointField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty || trimmed == PetSettings.defaults.aiEndpoint {
+                aiEndpointField.stringValue = ""
+            }
         }
         window?.makeFirstResponder(nil)
         saveSettings()
@@ -2167,6 +2172,8 @@ final class SettingsWindowController: NSWindowController, NSTableViewDataSource,
                 nextSettings.aiEndpoint = PetSettings.hermesDefaultEndpoint
             }
             nextSettings.aiModel = SettingsConstants.defaultHermesModel
+        } else if nextSettings.aiProvider == "Genspark" {
+            nextSettings.aiModel = SettingsConstants.defaultGensparkModel
         } else {
             nextSettings.aiModel = nextSettings.aiProvider
         }
@@ -2898,6 +2905,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return AIModelUsageStatus(provider: "Ollama", remainingPercent: 100, isExhausted: false)
         case "Hermes Agent":
             return AIModelUsageStatus(provider: "Hermes", remainingPercent: 100, isExhausted: false)
+        case "Genspark":
+            return AIModelUsageStatus(provider: "Genspark", remainingPercent: 100, isExhausted: false)
         default:
             return AIModelUsageStatus(provider: "Unknown", remainingPercent: 100, isExhausted: false)
         }

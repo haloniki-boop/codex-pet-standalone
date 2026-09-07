@@ -7,7 +7,7 @@ Codexとは別プロセスで動く、macOS用の常駐デスクトップペッ�
 - 透明・常時最前面のペット表示（全デスクトップ対応）
 - 静止、左右移動、上下運動、喜び・怒り・悲しみ・驚き・愛情アニメーション
 - 画像アップロードから8フレーム×9行のスプライトを自動生成
-- codex、claudeCode、Gemini、SAKANA FUGU、Ollama、Hermes Agentを選べる内蔵AIチャット
+- codex、claudeCode、Gemini、SAKANA FUGU、Ollama、Hermes Agent、Gensparkを選べる内蔵AIチャット
 - APIキーはプロジェクト直下の `.env` から読み込み
 - Todo・スケジュール管理とmacOS通知
 - 日本語の日常会話、音声認識、音声読み上げ
@@ -43,6 +43,22 @@ curl -fsS http://DXP2800-86A5.local:8642/v1/health
 
 正常時は `"status": "ok"` を含むJSONが返ります。接続できない場合は、MacとDXP-2800が同じネットワークまたはTailscale上にあること、Hermesコンテナの8642番ポートが公開されていることを確認してください。
 
+## Gensparkを使う
+
+Gensparkは公式のChat Completions APIを公開していないため、`genspark2api` などOpenAI互換のChat Completions形式に変換する自前ホストのプロキシ経由で接続します。プロキシを起動したうえで、プロジェクト直下の `.env` にAPIキーを設定します。
+
+```env
+GENSPARK_API_KEY=<プロキシに設定したAPIキー>
+```
+
+アプリの設定画面でAIモデルに `Genspark` を選択し、接続先（例：`http://localhost:8080/v1/chat/completions`）を入力します。
+
+- 既定のモデル：`genspark`（設定画面で変更可能）
+- API形式：OpenAI互換 Chat Completions
+- 認証方式：`Authorization: Bearer <GENSPARK_API_KEY>`
+
+接続先はプロキシごとに異なるため既定値はありません。設定画面で必ず入力してください。`.env` は公開リポジトリへコミットしないでください。
+
 ## Run
 
 ```sh
@@ -55,9 +71,9 @@ The app opens a transparent floating pet window. Click the pet for everyday conv
 
 Use Settings > Open Settings Window... to upload a pet image, choose the pet and size, configure AI, voice, notifications, and edit Japanese conversation messages.
 
-`codex` と `claudeCode` はローカルCLIを使用します。GeminiはGemini CLIが必要です。SAKANA FUGU、Ollama、Hermes AgentはHTTP APIを使用します。
+`codex` と `claudeCode` はローカルCLIを使用します。GeminiはGemini CLIが必要です。SAKANA FUGU、Ollama、Hermes Agent、GensparkはHTTP APIを使用します。
 
-APIキーは `.env` に設定します。SAKANA FUGUでは `SAKANA_API_KEY` または `SAKANA_FUGU_API_KEY`、Hermes Agentでは `HERMES_API_KEY` を使用します。
+APIキーは `.env` に設定します。SAKANA FUGUでは `SAKANA_API_KEY` または `SAKANA_FUGU_API_KEY`、Hermes Agentでは `HERMES_API_KEY`、Gensparkでは `GENSPARK_API_KEY` を使用します。
 
 日常会話欄の文章は生成例として利用されます。表示時には毎回、例と直近の発言に重複しない新しい会話を生成します。
 
@@ -103,7 +119,7 @@ Set `preferredPetID` or use Settings > Pet Type to change pets. Set `size` or us
 
 Set `voiceEnabled` to enable speech. `voiceIdentifier` is selected from the voices installed on macOS. `voiceToggleShortcut` uses a format such as `cmd+shift+v`, `ctrl+option+v`, or `cmd+shift+s`. macOS may ask for microphone and speech recognition permissions the first time listening starts.
 
-設定画面で `.env` ファイルを変更した場合は、そのファイル内に `HERMES_API_KEY` を設定してください。APIキーそのものは `settings.json` へ保存されません。
+設定画面で `.env` ファイルを変更した場合は、そのファイル内に `HERMES_API_KEY` や `GENSPARK_API_KEY` を設定してください。APIキーそのものは `settings.json` へ保存されません。
 
 ## Build an app bundle
 

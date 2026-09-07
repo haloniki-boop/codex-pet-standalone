@@ -91,8 +91,8 @@ struct VoiceConstants {
 }
 
 struct SettingsConstants {
-    static let supportedAIProviders = ["codex", "claudeCode", "Gemini", "SAKANA FUGU", "Ollama", "Hermes Agent"]
-    static let supportedAIProvidersForUI = ["codex", "claudeCode", "Gemini", "SAKANA FUGU", "Ollama", "Hermes Agent"]
+    static let supportedAIProviders = ["codex", "claudeCode", "Gemini", "SAKANA FUGU", "Ollama", "Hermes Agent", "Genspark"]
+    static let supportedAIProvidersForUI = ["codex", "claudeCode", "Gemini", "SAKANA FUGU", "Ollama", "Hermes Agent", "Genspark"]
 
     static let minIdleDelaySeconds: TimeInterval = 10
     static let defaultIdleDelaySeconds: TimeInterval = 90
@@ -106,6 +106,7 @@ struct SettingsConstants {
     static let defaultSakanaModel = "fugu"
     static let defaultOllamaModel = "llama3.1"
     static let defaultHermesModel = "hermes-agent"
+    static let defaultGensparkModel = "genspark"
 }
 
 struct ExecutableConstants {

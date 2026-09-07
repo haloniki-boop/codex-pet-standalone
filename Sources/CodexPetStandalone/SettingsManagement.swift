@@ -333,7 +333,7 @@ final class SettingsStore {
         if normalized.voiceToggleShortcut.isEmpty {
             normalized.voiceToggleShortcut = PetSettings.defaults.voiceToggleShortcut
         }
-        if normalized.aiEndpoint.isEmpty {
+        if normalized.aiEndpoint.isEmpty && normalized.aiProvider != "Genspark" {
             normalized.aiEndpoint = PetSettings.defaults.aiEndpoint
         }
         if !SettingsConstants.supportedAIProviders.contains(normalized.aiProvider) {
@@ -359,6 +359,10 @@ final class SettingsStore {
             }
             if normalized.aiModel.isEmpty || normalized.aiModel == "Hermes Agent" {
                 normalized.aiModel = SettingsConstants.defaultHermesModel
+            }
+        } else if normalized.aiProvider == "Genspark" {
+            if normalized.aiModel.isEmpty || normalized.aiModel == "Genspark" {
+                normalized.aiModel = SettingsConstants.defaultGensparkModel
             }
         } else if normalized.aiModel.isEmpty {
             normalized.aiModel = PetSettings.defaults.aiModel
