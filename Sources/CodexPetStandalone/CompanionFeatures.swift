@@ -366,11 +366,13 @@ final class AIChatClient {
 
     func gensparkUsage(endpoint: String) async -> (remainingPercent: Double, remainingCredits: Double?, totalCredits: Double?, error: String?) {
         guard let url = URL(string: endpoint) else {
+            companionLogger.debug("Genspark: 無効なエンドポイント: \(endpoint)")
             return (100.0, nil, nil, "無効なエンドポイント")
         }
 
         let apiKey = secretStore.loadEnvironmentValue(for: ["GENSPARK_API_KEY"])
         guard !apiKey.isEmpty else {
+            companionLogger.debug("Genspark: APIキーが未設定")
             return (100.0, nil, nil, "APIキーが未設定")
         }
 
@@ -383,34 +385,55 @@ final class AIChatClient {
         for usageURL in usageEndpoints {
             guard let endpointURL = URL(string: usageURL) else { continue }
 
-            var request = URLRequest(url: endpointURL)
+            var request = URLRequest(url: endpointURL, timeoutInterval: 3.0)
             request.httpMethod = "GET"
             request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
 
             do {
+                companionLogger.debug("Genspark: リクエスト開始: \(usageURL)")
                 let (data, response) = try await URLSession.shared.data(for: request)
-                guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                companionLogger.debug("Genspark: レスポンス受信")
+
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    companionLogger.debug("Genspark: HTTPレスポンスがありません: \(usageURL)")
                     continue
                 }
 
+                companionLogger.debug("Genspark: ステータスコード \(httpResponse.statusCode) from \(usageURL)")
+
+                guard httpResponse.statusCode == 200 else {
+                    companionLogger.debug("Genspark: ステータスコード \(httpResponse.statusCode) - スキップ")
+                    continue
+                }
+
+                if let jsonString = String(data: data, encoding: .utf8) {
+                    companionLogger.debug("Genspark: レスポンス: \(jsonString.prefix(500))")
+                }
+
                 if let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    companionLogger.debug("Genspark: JSONキー: \(object.keys.joined(separator: ", "))")
+
                     if let usage = object["usage"] as? [String: Any],
                        let total = usage["total_available"] as? Double,
                        let used = usage["total_used"] as? Double,
                        total > 0 {
                         let remaining = total - used
                         let percent = max(0, min(100, remaining / total * 100))
+                        companionLogger.info("Genspark: クレジット取得成功: \(remaining)/\(total)")
                         return (percent, remaining, total, nil)
                     }
-                    if let models = object["data"] as? [[String: Any]] {
+                    if object["data"] != nil {
+                        companionLogger.debug("Genspark: data フィールドが存在 (モデル情報)")
                         return (100.0, nil, nil, nil)
                     }
                 }
             } catch {
+                companionLogger.debug("Genspark: エラー from \(usageURL): \(error)")
                 continue
             }
         }
 
+        companionLogger.debug("Genspark: すべてのエンドポイントで情報を取得できませんでした")
         return (100.0, nil, nil, nil)
     }
 
