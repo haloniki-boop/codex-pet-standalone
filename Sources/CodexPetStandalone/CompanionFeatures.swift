@@ -364,14 +364,14 @@ final class AIChatClient {
         return try await chatCompletionsReply(url: url, messages: messages, settings: settings, apiKey: apiKey)
     }
 
-    func gensparkUsage(endpoint: String) async -> (remainingPercent: Double, error: String?) {
+    func gensparkUsage(endpoint: String) async -> (remainingPercent: Double, remainingCredits: Double?, totalCredits: Double?, error: String?) {
         guard let url = URL(string: endpoint) else {
-            return (100.0, "無効なエンドポイント")
+            return (100.0, nil, nil, "無効なエンドポイント")
         }
 
         let apiKey = secretStore.loadEnvironmentValue(for: ["GENSPARK_API_KEY"])
         guard !apiKey.isEmpty else {
-            return (100.0, "APIキーが未設定")
+            return (100.0, nil, nil, "APIキーが未設定")
         }
 
         let baseURLString = url.deletingLastPathComponent().deletingLastPathComponent().absoluteString
@@ -398,11 +398,12 @@ final class AIChatClient {
                        let total = usage["total_available"] as? Double,
                        let used = usage["total_used"] as? Double,
                        total > 0 {
-                        let remaining = max(0, min(100, (total - used) / total * 100))
-                        return (remaining, nil)
+                        let remaining = total - used
+                        let percent = max(0, min(100, remaining / total * 100))
+                        return (percent, remaining, total, nil)
                     }
                     if let models = object["data"] as? [[String: Any]] {
-                        return (100.0, nil)
+                        return (100.0, nil, nil, nil)
                     }
                 }
             } catch {
@@ -410,7 +411,7 @@ final class AIChatClient {
             }
         }
 
-        return (100.0, nil)
+        return (100.0, nil, nil, nil)
     }
 
     private func chatCompletionsReply(

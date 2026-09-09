@@ -13,10 +13,25 @@ struct AIModelUsageStatus {
     let provider: String
     let remainingPercent: Double
     let isExhausted: Bool
+    let remainingCredits: Double?
+    let totalCredits: Double?
+
+    init(provider: String, remainingPercent: Double, isExhausted: Bool, remainingCredits: Double? = nil, totalCredits: Double? = nil) {
+        self.provider = provider
+        self.remainingPercent = remainingPercent
+        self.isExhausted = isExhausted
+        self.remainingCredits = remainingCredits
+        self.totalCredits = totalCredits
+    }
 
     var displayText: String {
         if isExhausted {
             return "上限到達"
+        }
+        if let remaining = remainingCredits, let total = totalCredits, total > 0 {
+            let remainingFormatted = String(format: "%.1f", remaining)
+            let totalFormatted = String(format: "%.1f", total)
+            return "残り \(remainingFormatted) / \(totalFormatted) クレジット"
         }
         return "残り \(Int(remainingPercent.rounded()))%"
     }
@@ -2932,8 +2947,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "Hermes Agent":
             return AIModelUsageStatus(provider: "Hermes", remainingPercent: 100, isExhausted: false)
         case "Genspark":
-            let (remaining, _) = await aiClient.gensparkUsage(endpoint: settings.aiEndpoint)
-            return AIModelUsageStatus(provider: "Genspark", remainingPercent: remaining, isExhausted: false)
+            let (remaining, remainingCredits, totalCredits, _) = await aiClient.gensparkUsage(endpoint: settings.aiEndpoint)
+            return AIModelUsageStatus(provider: "Genspark", remainingPercent: remaining, isExhausted: false, remainingCredits: remainingCredits, totalCredits: totalCredits)
         default:
             return AIModelUsageStatus(provider: "Unknown", remainingPercent: 100, isExhausted: false)
         }
