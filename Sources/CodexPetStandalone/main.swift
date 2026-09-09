@@ -2861,7 +2861,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         configureVoice()
         installShortcutMonitors()
         refreshMenu()
-        updateModelUsageDisplay()
+        Task { @MainActor in
+            await updateModelUsageDisplay()
+        }
         markActivity()
     }
 
@@ -2895,19 +2897,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settingsTimer = Timer.scheduledTimer(withTimeInterval: SettingsConstants.settingsCheckInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.reloadSettings()
-                self?.updateModelUsageDisplay()
+                await self?.updateModelUsageDisplay()
             }
         }
         reloadSettings()
-        updateModelUsageDisplay()
+        Task { @MainActor in
+            await updateModelUsageDisplay()
+        }
     }
 
-    private func updateModelUsageDisplay() {
-        let modelUsage = currentProviderUsageStatus()
+    private func updateModelUsageDisplay() async {
+        let modelUsage = await currentProviderUsageStatus()
         petWindow.updateModelUsageDisplay(modelUsage)
     }
 
-    private func currentProviderUsageStatus() -> AIModelUsageStatus {
+    private func currentProviderUsageStatus() async -> AIModelUsageStatus {
         switch settings.aiProvider {
         case "codex":
             if let codexStatus = CodexUsageReader.status() {
@@ -2928,7 +2932,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "Hermes Agent":
             return AIModelUsageStatus(provider: "Hermes", remainingPercent: 100, isExhausted: false)
         case "Genspark":
-            return AIModelUsageStatus(provider: "Genspark", remainingPercent: 100, isExhausted: false)
+            let (remaining, _) = await aiClient.gensparkUsage(endpoint: settings.aiEndpoint)
+            return AIModelUsageStatus(provider: "Genspark", remainingPercent: remaining, isExhausted: false)
         default:
             return AIModelUsageStatus(provider: "Unknown", remainingPercent: 100, isExhausted: false)
         }

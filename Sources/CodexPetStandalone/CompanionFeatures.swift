@@ -364,6 +364,55 @@ final class AIChatClient {
         return try await chatCompletionsReply(url: url, messages: messages, settings: settings, apiKey: apiKey)
     }
 
+    func gensparkUsage(endpoint: String) async -> (remainingPercent: Double, error: String?) {
+        guard let url = URL(string: endpoint) else {
+            return (100.0, "無効なエンドポイント")
+        }
+
+        let apiKey = secretStore.loadEnvironmentValue(for: ["GENSPARK_API_KEY"])
+        guard !apiKey.isEmpty else {
+            return (100.0, "APIキーが未設定")
+        }
+
+        let baseURLString = url.deletingLastPathComponent().deletingLastPathComponent().absoluteString
+        let usageEndpoints = [
+            baseURLString.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/v1/models",
+            baseURLString.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/v1/billing/usage"
+        ]
+
+        for usageURL in usageEndpoints {
+            guard let endpointURL = URL(string: usageURL) else { continue }
+
+            var request = URLRequest(url: endpointURL)
+            request.httpMethod = "GET"
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+
+            do {
+                let (data, response) = try await URLSession.shared.data(for: request)
+                guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                    continue
+                }
+
+                if let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    if let usage = object["usage"] as? [String: Any],
+                       let total = usage["total_available"] as? Double,
+                       let used = usage["total_used"] as? Double,
+                       total > 0 {
+                        let remaining = max(0, min(100, (total - used) / total * 100))
+                        return (remaining, nil)
+                    }
+                    if let models = object["data"] as? [[String: Any]] {
+                        return (100.0, nil)
+                    }
+                }
+            } catch {
+                continue
+            }
+        }
+
+        return (100.0, nil)
+    }
+
     private func chatCompletionsReply(
         url: URL,
         messages: [ChatMessage],
